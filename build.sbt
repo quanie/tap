@@ -14,25 +14,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import LocalSbtSettings._
+
 name := "tap"
 
-version := "3.0.5"
+version := "3.1.1"
 
-scalaVersion := "2.12.3"
+scalaVersion := "2.12.4"
 
 organization := "au.edu.utscic"
 
 //Scala library versions
-val sangriaVersion = "1.3.0"
-val playJsonVersion = "2.6.6"
-val twirlApiVersion = "1.3.12"
+val nlytxNlpApiV = "1.1.0"
+val nlytxNlpCommonsV = "1.0.0"
+val factorieNlpV = "1.0.4"
+val factorieNlpModelsV = "1.0.3"
+
+val sangriaVersion = "1.3.2"
 val sangriaJsonVersion = "1.0.4"
+val playJsonVersion = "2.6.7"
+val twirlApiVersion = "1.3.13"
+
 val akkaStreamVersion = "2.5.6"
 val scalatestVersion = "3.0.4"
 val scalatestPlayVersion = "3.1.2"
-val nlytxCommonsVersion = "0.1.1"
+
 //Java library versions
-val openNlpVersion = "1.8.2"
+val openNlpVersion = "1.8.3"
+val langToolVersion = "3.9"
 
 enablePlugins(PlayScala)
 disablePlugins(PlayLayoutPlugin)
@@ -48,13 +57,15 @@ val apiDependencies = Seq(
 )
 
 val analyticsDependencies = Seq(
+  "io.nlytx" %% "nlytx-nlp-api" % nlytxNlpApiV,
+  "io.nlytx" %% "nlytx-nlp-commons" % nlytxNlpCommonsV,
+  "io.nlytx" %% "factorie-nlp" % factorieNlpV,
+  "io.nlytx" %% "factorie-nlp-models" % factorieNlpModelsV,
   "com.typesafe.akka" % "akka-stream_2.12" % akkaStreamVersion,
-  "org.apache.opennlp" % "opennlp-tools" % openNlpVersion
+  "org.apache.opennlp" % "opennlp-tools" % openNlpVersion,
+  "org.languagetool" % "language-en" % langToolVersion
 )
-
-val generalDependencies = Seq(
-  "io.nlytx" %% "commons" % nlytxCommonsVersion
-)
+resolvers += Resolver.bintrayRepo("nlytx", "nlytx-nlp")
 
 val testDependencies = Seq(
   "org.scalactic" %% "scalactic" % scalatestVersion,
@@ -64,18 +75,21 @@ val testDependencies = Seq(
 )
 
 
-libraryDependencies ++= apiDependencies ++ analyticsDependencies ++ generalDependencies ++ testDependencies
+libraryDependencies ++= apiDependencies ++ analyticsDependencies ++ testDependencies
 
 scalacOptions in (Compile, doc) ++= Seq("-doc-root-content", baseDirectory.value+"/src/main/scala/root-doc.md")
 
-resolvers += Resolver.bintrayRepo("nlytx", "nlytx_commons")
+//Set the environment variable for hosts allowed in testing
+fork in Test := true
+envVars in Test := Map("TAP_HOSTS" -> "localhost")
+
 
 //Documentation - run ;paradox;copyDocs
 enablePlugins(ParadoxPlugin) //Generate documentation with Paradox
 paradoxTheme := Some(builtinParadoxTheme("generic"))
 paradoxProperties in Compile ++= Map(
-  "github.base_url" -> s"https://github.com/uts-cic/tap",
-  "scaladoc.api.base_url" -> s"https://uts-cic.github.io/tap"
+  "github.base_url" -> s"$githubBaseUrl",
+  "scaladoc.api.base_url" -> s"$scaladocApiBaseUrl"
 )
 //Task for copying to root level docs folder (for GitHub pages)
 val copyDocsTask = TaskKey[Unit]("copyDocs","copies paradox docs to /docs directory")
@@ -88,35 +102,14 @@ copyDocsTask := {
   IO.copyDirectory(docSource,docDest,overwrite=true,preserveLastModified=true)
   IO.copyDirectory(apiSource,apiDest,overwrite=true,preserveLastModified=true)
 }
-//scalacOptions in Paradox ++= Seq("-doc-root-content", baseDirectory.value+"/src/main/scala/root-doc.md")
 
-//enablePlugins(SiteScaladocPlugin) //Include Scaladoc with scala-site documentation
-//siteSourceDirectory := sourceDirectory.value / "docs" // target.value / "docs"
-//enablePlugins(ParadoxSitePlugin)
-//sourceDirectory in Paradox := sourceDirectory.value / "src/main/paradox"
-//enablePlugins(GhpagesPlugin)
-//git.remoteRepo := "git@github.com:uts-cic/tap.git"
-
-//Enable this only for local builds - disabled for Travis
 enablePlugins(JavaAppPackaging) // sbt universal:packageZipTarball
-dockerExposedPorts := Seq(9000) // sbt docker:publishLocal
-
+dockerExposedPorts := Seq(9000,80) // sbt docker:publishLocal
+dockerRepository := Some(s"$dockerRepoURI")
+defaultLinuxInstallLocation in Docker := "/opt/docker"
+dockerExposedVolumes := Seq("/opt/docker/logs")
 javaOptions in Universal ++= Seq(
   // -J params will be added as jvm parameters
-  "-J-Xmx2048m",
-  "-J-Xms512m"
-
-  // others will be added as app parameters
-//  "-Dproperty=true",
-//  "-port=8080",
-
-  // you can access any build setting/task here
-  //s"-version=${version.value}"
+  "-J-Xmx4g",
+  "-J-Xms2g"
 )
-
-//Generate build info file
-//Disable for travis CI
-//enablePlugins(BuildInfoPlugin)
-//buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)
-//buildInfoPackage := "org.goingok"
-//buildInfoOptions += BuildInfoOption.BuildTime

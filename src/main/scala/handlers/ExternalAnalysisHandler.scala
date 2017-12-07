@@ -16,70 +16,25 @@
 
 package handlers
 
-import java.io.File
+import javax.inject.Inject
 
-import au.edu.utscic.tap.pipelines.materialize.PipelineContext.{executor, materializer}
-import com.typesafe.config.ConfigFactory
 import models.Results.StringListResult
-import play.api.{Configuration, Environment, Mode}
-import play.api.libs.ws.ahc.{AhcWSClient, AhcWSClientConfig, AhcWSClientConfigFactory}
-import play.api.libs.ws.{WSClient, WSRequest, WSResponse}
+import play.api.Logger
+import tap.analysis.athanor.AthanorClient
 
 import scala.concurrent.Future
-import scala.concurrent.duration.DurationInt
 /**
   * Created by andrew@andrewresearch.net on 19/9/17.
   */
-object ExternalAnalysisHandler {
+class ExternalAnalysisHandler @Inject() (athanorClient: AthanorClient) {
 
-  val configuration: Configuration = Configuration.reference ++ Configuration(ConfigFactory.parseString(
-    """
-      |ws.followRedirects = true
-    """.stripMargin))
+  val logger: Logger = Logger(this.getClass)
 
-  // If running in Play, environment should be injected
-  val environment = Environment(new File("."), this.getClass.getClassLoader, Mode.Prod)
-  val wsConfig: AhcWSClientConfig = AhcWSClientConfigFactory.forConfig(configuration.underlying, environment.classLoader)
-  val wsClient: WSClient = AhcWSClient(wsConfig)
+  def analyseWithAthanor(text:String,grammar:Option[String]):Future[StringListResult] = {
+    val parameter = "?grammar=" + grammar.getOrElse("analytic")
+    logger.info(s"Creating request with parameter: $parameter")
 
-  def analyseWithAthanor(text:String):Future[StringListResult] = {
-    //logger.info(s"Analysing with athanor: $text")
-    val url = "http://athanor.utscic.edu.au/v2/analyse/text/rhetorical"
-    val request: WSRequest = wsClient.url(url)
-
-    val athanorRequest: WSRequest =
-      request.withHttpHeaders("Accept" -> "application/json")
-        .withRequestTimeout(10000.millis)
-
-    val futureResponse: Future[WSResponse] = athanorRequest.post(text)
-
-    case class AthanorMsg(message:String, results:List[List[String]])
-
-    import play.api.libs.functional.syntax._  //scalastyle:ignore
-    import play.api.libs.json._               //scalastyle:ignore
-
-    implicit val AMWrites: Writes[AthanorMsg] = (
-      (JsPath \ "message").write[String] and
-        (JsPath \ "results").write[List[List[String]]]
-    )(unlift(AthanorMsg.unapply))
-
-    implicit val AMReads:Reads[AthanorMsg] = (
-      (JsPath \ "message").read[String] and
-        (JsPath \ "results").read[List[List[String]]]
-      )(AthanorMsg.apply _)
-
-    val result:Future[List[List[String]]] = futureResponse.map { response =>
-      response.json.as[AthanorMsg].results
-    }
-
-
-    //result.foreach(s => logger.warn(s"Response: $s"))
-
-
-    //logger.warn(s"analyseWithAthanor not implemented. Returning dummy result. Text received:\n $text")
-    //val dummyResult:List[List[String]] = List(List("Moves","Not","Implemented"),List("Sentence","Two"))
-    //StringListResult(dummyResult)
-    result.map(s => StringListResult(s))
+    athanorClient.process(text,parameter)
   }
 
 }

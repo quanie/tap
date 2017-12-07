@@ -17,11 +17,10 @@
 package models
 
 import handlers.{ExternalAnalysisHandler, TextAnalysisHandler}
-
 import models.Results._
 import models.Results.Implicits._
 import sangria.macros.derive._
-import sangria.schema.{Argument, Field, ObjectType, Schema, StringType, fields}
+import sangria.schema.{Argument, Field, ObjectType, OptionInputType, Schema, StringType, fields}
 
 import scala.concurrent.Future
 
@@ -29,11 +28,13 @@ import scala.concurrent.Future
   * Created by andrew@andrewresearch.net on 31/8/17.
   */
 
-object GraphqlSchema {
+class GraphqlSchema {
 
   val inputText:Argument[String] = Argument("text", StringType)
+  val moveGrammar:Argument[Option[String]] = Argument("grammar",OptionInputType(StringType))
+  val pipetype:Argument[Option[String]] = Argument("pipetype",OptionInputType(StringType))
 
-  val allFields = fields[Actions,Unit](
+  val allFields = fields[GraphqlActions,Unit](
     Field("visible", StringResultType,
       Some("Returns the text showing nonstandard characters"),
       arguments = inputText :: Nil, resolve = c => c.ctx.visible(c arg inputText)),
@@ -49,9 +50,10 @@ object GraphqlSchema {
     Field("cleanAscii",StringResultType,
       Some("Returns ascii safe cleaned text"),
       arguments = inputText :: Nil, resolve = c => c.ctx.cleanAscii(c arg inputText)),
+
     Field("annotations", deriveObjectType[Unit,SentencesResult](Interfaces[Unit,SentencesResult](ResultType)),
       Some("Returns sentences for text"),
-      arguments = inputText :: Nil, resolve = c => c.ctx.sentences(c arg inputText)),
+      arguments = inputText :: pipetype :: Nil, resolve = c => c.ctx.annotations(c arg inputText,c arg pipetype)),
     Field("vocabulary",deriveObjectType[Unit,VocabResult](Interfaces[Unit,VocabResult](ResultType)),
       description = Some("Returns vocabulary for text"),
       arguments = inputText :: Nil, resolve = c => c.ctx.vocabulary(c arg inputText)),
@@ -64,31 +66,19 @@ object GraphqlSchema {
     Field("syllables", deriveObjectType[Unit,SyllablesResult](Interfaces[Unit,SyllablesResult](ResultType)),
       Some("Counts syllables in words and calculates averages for sentences"),
       arguments = inputText :: Nil, resolve = c => c.ctx.syllables(c.arg(inputText))),
+    Field("spelling", deriveObjectType[Unit,SpellingResult](Interfaces[Unit,SpellingResult](ResultType)),
+      Some("Returns spelling errors and suggestions for each sentence"),
+      arguments = inputText :: Nil, resolve = c => c.ctx.spelling(c.arg(inputText))),
+    Field("posStats",deriveObjectType[Unit,PosStatsResult](Interfaces[Unit,PosStatsResult](ResultType)),
+      Some("Returns posStats for text"),
+      arguments = inputText :: Nil, resolve = c => c.ctx.posStats(c arg inputText)),
+
     Field("moves",deriveObjectType[Unit,StringListResult](Interfaces[Unit,StringListResult](ResultType)),
       description = Some("Returns a list of moves for the input text"),
-      arguments = inputText :: Nil, resolve = c => c.ctx.moves(c arg inputText))
+      arguments = inputText :: moveGrammar :: Nil, resolve = c => c.ctx.moves(c arg inputText,c arg moveGrammar))
   )
 
-  class Actions {
+  def create:Schema[GraphqlActions,Unit] = Schema(ObjectType("Query",allFields))
 
-    def visible(text:String):Future[StringResult]       = TextAnalysisHandler.visible(text)
-    def clean(text:String):Future[StringResult]         = TextAnalysisHandler.clean(text)
-    def cleanPreserve(text:String):Future[StringResult] = TextAnalysisHandler.cleanPreserve(text)
-    def cleanMinimal(text:String):Future[StringResult]  = TextAnalysisHandler.cleanMinimal(text)
-    def cleanAscii(text:String):Future[StringResult]    = TextAnalysisHandler.cleanAscii(text)
-    def sentences(text:String):Future[SentencesResult]  = TextAnalysisHandler.sentences(text)
-    def vocabulary(text:String):Future[VocabResult]     = TextAnalysisHandler.vocabulary(text)
-    def metrics(text:String):Future[MetricsResult]      = TextAnalysisHandler.metrics(text)
-    def expressions(text:String):Future[ExpressionsResult] = TextAnalysisHandler.expressions(text)
-    def syllables(text:String):Future[SyllablesResult]  = TextAnalysisHandler.syllables(text)
-    def moves(text:String):Future[StringListResult]     = ExternalAnalysisHandler.analyseWithAthanor(text)
-
-    //TODO Still to Implement
-    def spelling(text:String):Future[StringResult] = TextAnalysisHandler.spelling(text)
-    def shape(text:String):Future[StringResult] = TextAnalysisHandler.shape(text)
-  }
-
-  def create:Schema[Actions,Unit] = Schema(ObjectType("Query",allFields))
-  def actions:Actions = new Actions
 
 }

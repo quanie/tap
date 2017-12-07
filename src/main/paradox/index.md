@@ -1,30 +1,15 @@
-@@@ index
+# Text Analytics Pipeline (TAP)
 
-* [Users](user.md)
-* [Developers](developer.md)
+Get started immediately with the [Quick Start](overview/quick_start.html)
+
+@@toc { depth=2 }
+
+@@@ index
+* [Overview](overview/index.md)
+* [Users](user/index.md)
+* [Developers](developer/index.md)
 
 @@@
-
-# TAP
-
-### Text Analytics Pipeline
-
-Some info about the text analytics pipeline
-
-### About this documentation
-
-How to navigate the docs
-
-### Quick Start
-
-How to get up and running with TAP
-
-### Contributing
-
-How to make a contribution to the development of TAP
-
-### License
-
 
 ---
 
